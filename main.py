@@ -36,15 +36,21 @@ async def lifespan(app: FastAPI):
     # 启动时的初始化工作
     logger.info("🚀 云推客严选后端服务启动中...")
     
-    # 测试数据库连接
+    # 初始化数据库连接
     try:
+        from app.core.database import db_manager
+        await db_manager.connect()
         supabase = get_db_client()
         # 简单的连接测试
         result = supabase.table("users").select("count", count="exact").limit(1).execute()
         logger.info(f"✅ Supabase数据库连接成功，用户表记录数: {result.count}")
     except Exception as e:
         logger.error(f"❌ Supabase数据库连接失败: {e}")
-        raise
+        # 在开发环境中，即使数据库连接失败也继续启动
+        if settings.DEBUG:
+            logger.warning("⚠️ 开发模式：忽略数据库连接错误，继续启动服务")
+        else:
+            raise
     
     logger.info("✅ 云推客严选后端服务启动完成")
     
@@ -141,7 +147,7 @@ app = FastAPI(
 # 配置CORS中间件
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=settings.ALLOWED_HOSTS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=[
@@ -330,8 +336,8 @@ if __name__ == "__main__":
     # 启动服务器
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=8000,
+        host="127.0.0.1",
+        port=9001,
         reload=True,
         log_level="info",
         access_log=True

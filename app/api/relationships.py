@@ -7,12 +7,13 @@ Date: 2024
 """
 
 from typing import Optional
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from loguru import logger
 
 from ..core.security import (
-    get_current_user, require_role, require_active_user,
-    rate_limit
+    get_current_user_id, require_roles, require_active_user,
+    create_rate_limit_dependency
 )
 from ..models.user import User, UserRole
 from ..models.relationship import (
@@ -30,11 +31,11 @@ router = APIRouter(prefix="/relationships", tags=["达人关系管理"])
 
 
 @router.post("/", response_model=ResponseModel)
-@rate_limit("relationship_create", 10, 60)  # 每分钟最多10次
 async def create_relationship(
     relationship_data: RelationshipCreate,
-    current_user: User = Depends(require_active_user),
-    relationship_service: RelationshipService = Depends(get_relationship_service)
+    current_user_id: UUID = Depends(get_current_user_id),
+    relationship_service: RelationshipService = Depends(get_relationship_service),
+    _: None = Depends(create_rate_limit_dependency(10, 60))  # 每分钟最多10次
 ):
     """创建用户关系
     
@@ -52,7 +53,7 @@ async def create_relationship(
     try:
         result = await relationship_service.create_relationship(
             relationship_data=relationship_data,
-            requester_id=current_user.id
+            requester_id=current_user_id
         )
         
         if not result.success:
@@ -68,13 +69,13 @@ async def create_relationship(
 
 
 @router.put("/{relationship_id}/status", response_model=ResponseModel)
-@rate_limit("relationship_update", 20, 60)  # 每分钟最多20次
 async def update_relationship_status(
     relationship_id: str,
     new_status: RelationshipStatus,
     notes: Optional[str] = None,
-    current_user: User = Depends(require_active_user),
-    relationship_service: RelationshipService = Depends(get_relationship_service)
+    current_user_id: UUID = Depends(get_current_user_id),
+    relationship_service: RelationshipService = Depends(get_relationship_service),
+    _: None = Depends(create_rate_limit_dependency(20, 60))  # 每分钟最多20次
 ):
     """更新关系状态
     
@@ -91,7 +92,7 @@ async def update_relationship_status(
         result = await relationship_service.update_relationship_status(
             relationship_id=relationship_id,
             new_status=new_status,
-            operator_id=current_user.id,
+            operator_id=current_user_id,
             notes=notes
         )
         
@@ -108,13 +109,13 @@ async def update_relationship_status(
 
 
 @router.get("/my", response_model=ResponseModel[RelationshipListResponse])
-@rate_limit("relationship_list", 30, 60)  # 每分钟最多30次
 async def get_my_relationships(
     relationship_type: Optional[RelationshipType] = Query(None, description="关系类型过滤"),
     status: Optional[RelationshipStatus] = Query(None, description="状态过滤"),
     pagination: PaginationParams = Depends(),
-    current_user: User = Depends(require_active_user),
-    relationship_service: RelationshipService = Depends(get_relationship_service)
+    current_user_id: UUID = Depends(get_current_user_id),
+    relationship_service: RelationshipService = Depends(get_relationship_service),
+    _: None = Depends(create_rate_limit_dependency(30, 60))  # 每分钟最多30次
 ):
     """获取我的关系列表
     
@@ -131,7 +132,7 @@ async def get_my_relationships(
     """
     try:
         result = await relationship_service.get_user_relationships(
-            user_id=current_user.id,
+            user_id=current_user_id,
             relationship_type=relationship_type,
             status=status,
             pagination=pagination
@@ -150,10 +151,10 @@ async def get_my_relationships(
 
 
 @router.get("/binding-info", response_model=ResponseModel[UserBindingInfo])
-@rate_limit("binding_info", 20, 60)  # 每分钟最多20次
 async def get_my_binding_info(
-    current_user: User = Depends(require_active_user),
-    relationship_service: RelationshipService = Depends(get_relationship_service)
+    current_user_id: UUID = Depends(get_current_user_id),
+    relationship_service: RelationshipService = Depends(get_relationship_service),
+    _: None = Depends(create_rate_limit_dependency(20, 60))  # 每分钟最多20次
 ):
     """获取我的绑定信息
     
@@ -171,7 +172,7 @@ async def get_my_binding_info(
     """
     try:
         result = await relationship_service.get_user_binding_info(
-            user_id=current_user.id
+            user_id=current_user_id
         )
         
         if not result.success:
@@ -187,11 +188,11 @@ async def get_my_binding_info(
 
 
 @router.get("/statistics", response_model=ResponseModel[RelationshipStatistics])
-@rate_limit("relationship_stats", 10, 60)  # 每分钟最多10次
 async def get_relationship_statistics(
     days: int = Query(30, ge=1, le=365, description="统计天数"),
-    current_user: User = Depends(require_active_user),
-    relationship_service: RelationshipService = Depends(get_relationship_service)
+    current_user_id: UUID = Depends(get_current_user_id),
+    relationship_service: RelationshipService = Depends(get_relationship_service),
+    _: None = Depends(create_rate_limit_dependency(10, 60))  # 每分钟最多10次
 ):
     """获取关系统计信息
     
@@ -212,7 +213,7 @@ async def get_relationship_statistics(
     """
     try:
         result = await relationship_service.get_relationship_statistics(
-            user_id=current_user.id,
+            user_id=current_user_id,
             days=days
         )
         
@@ -229,14 +230,14 @@ async def get_relationship_statistics(
 
 
 @router.get("/user/{user_id}", response_model=ResponseModel[RelationshipListResponse])
-@rate_limit("user_relationships", 20, 60)  # 每分钟最多20次
 async def get_user_relationships(
     user_id: str,
     relationship_type: Optional[RelationshipType] = Query(None, description="关系类型过滤"),
     status: Optional[RelationshipStatus] = Query(None, description="状态过滤"),
     pagination: PaginationParams = Depends(),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.LEADER])),
-    relationship_service: RelationshipService = Depends(get_relationship_service)
+    current_user_payload: dict = Depends(require_roles([UserRole.MERCHANT, UserRole.LEADER])),
+    relationship_service: RelationshipService = Depends(get_relationship_service),
+    _: None = Depends(create_rate_limit_dependency(20, 60))  # 每分钟最多20次
 ):
     """获取指定用户的关系列表
     
@@ -257,10 +258,13 @@ async def get_user_relationships(
     """
     try:
         # 团长权限检查：只能查看自己团队成员的关系
-        if current_user.role == UserRole.LEADER:
+        current_user_role = current_user_payload.get("role")
+        current_user_id = current_user_payload.get("sub")
+        
+        if current_user_role == UserRole.LEADER.value:
             # 检查目标用户是否为团队成员
             binding_result = await relationship_service.get_user_relationships(
-                user_id=current_user.id,
+                user_id=current_user_id,
                 relationship_type=RelationshipType.BINDING,
                 status=RelationshipStatus.ACTIVE
             )
@@ -292,11 +296,11 @@ async def get_user_relationships(
 
 
 @router.get("/user/{user_id}/binding-info", response_model=ResponseModel[UserBindingInfo])
-@rate_limit("user_binding_info", 20, 60)  # 每分钟最多20次
 async def get_user_binding_info(
     user_id: str,
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.LEADER])),
-    relationship_service: RelationshipService = Depends(get_relationship_service)
+    current_user_payload: dict = Depends(require_roles([UserRole.MERCHANT, UserRole.LEADER])),
+    relationship_service: RelationshipService = Depends(get_relationship_service),
+    _: None = Depends(create_rate_limit_dependency(20, 60))  # 每分钟最多20次
 ):
     """获取指定用户的绑定信息
     
@@ -311,10 +315,13 @@ async def get_user_binding_info(
     """
     try:
         # 团长权限检查：只能查看自己团队成员的绑定信息
-        if current_user.role == UserRole.LEADER:
+        current_user_role = current_user_payload.get("role")
+        current_user_id = current_user_payload.get("sub")
+        
+        if current_user_role == UserRole.LEADER.value:
             # 检查目标用户是否为团队成员
             binding_result = await relationship_service.get_user_relationships(
-                user_id=current_user.id,
+                user_id=current_user_id,
                 relationship_type=RelationshipType.BINDING,
                 status=RelationshipStatus.ACTIVE
             )

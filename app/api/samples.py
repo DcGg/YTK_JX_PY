@@ -24,7 +24,7 @@ from ..models.common import (
 )
 from ..core.security import (
     get_current_user_id, require_roles, require_active_user,
-    rate_limit
+    create_rate_limit_dependency
 )
 from ..services.sample_service import SampleService, get_sample_service
 
@@ -42,7 +42,7 @@ async def create_sample_request(
     sample_data: SampleCreate,
     current_user_id = Depends(get_current_user_id),
     sample_service: SampleService = Depends(get_sample_service),
-    _: None = Depends(rate_limit("samples_create", 10, 60))  # 每分钟最多10次
+    _: None = Depends(create_rate_limit_dependency(10, 60))  # 每分钟最多10次
 ):
     """创建申样请求"""
     try:
