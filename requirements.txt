@@ -1,0 +1,46 @@
+# 云推客严选后端项目依赖配置
+# FastAPI框架和相关依赖
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+pydantic-settings==2.1.0
+
+# 数据库相关
+supabase==2.3.0
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.23
+alembic==1.13.1
+
+# 认证和安全
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.6
+
+# HTTP客户端和工具
+httpx==0.25.2
+requests==2.31.0
+
+# 数据处理
+pandas==2.1.4
+numpy==1.25.2
+
+# 缓存
+redis==5.0.1
+
+# 日志和监控
+loguru==0.7.2
+
+# 开发工具
+pytest==7.4.3
+pytest-asyncio==0.21.1
+black==23.11.0
+flake8==6.1.0
+
+# 环境变量管理
+python-dotenv==1.0.0
+
+# 时间处理
+python-dateutil==2.8.2
+
+# JSON处理
+orjson==3.9.10
